@@ -1,0 +1,184 @@
+---
+name: work-manager
+description: Manage personal work workspace with tasks. Use when user invokes /work/new, /work/update, or /work/archive slash commands. Creates and manages task folders with date-based naming (YYYYMMDD-description) in work/active/ directory, maintains task tracking README files with progress logs, and handles git commits with change summaries.
+---
+
+# Work Manager
+
+Manage personal work tasks with date-based organization, task tracking, and git integration.
+
+## Workspace Structure
+
+```
+<current-directory>/
+└── work/
+    ├── active/           # Active tasks
+    │   └── YYYYMMDD-task-name/
+    │       ├── README.md    # Task tracking file
+    │       ├── .gitignore   # Git ignore rules (filters output/)
+    │       ├── output/      # Generated files (demo, analysis, etc.)
+    │       └── ...         # Task files
+    └── archive/          # Archived tasks
+```
+
+## Commands
+
+### /work/new - Create New Task
+
+**Usage:** `/work/new <task-description>`
+
+**Steps:**
+1. Get today's date in YYYYMMDD format
+2. Create task folder: `work/active/YYYYMMDD-<task-description>/`
+3. Create `output/` folder inside task folder
+4. Create `.gitignore` file with content:
+   ```
+   output/
+   ```
+5. Create README.md with task tracking template
+6. Initialize git repository in work/ if not already initialized
+7. Initial commit (excluding output/ via .gitignore)
+8. Return confirmation with task folder path
+
+**Task Tracking Template:**
+```markdown
+# <task-description>
+
+- 开始日期: YYYY-MM-DD
+- 状态: 进行中
+
+## Output 文件夹
+
+用于存放任务中间生成的内容，例如 demo 页面、分析报告等。新生成的文件应先放在此文件夹中。
+
+## 任务文件
+
+（自动列出当前任务文件夹中的所有文件，排除 output/ 和 .gitignore）
+
+## 进展日志
+
+### 阶段 1: 初始
+- 日期: YYYY-MM-DD
+- 描述: 任务创建
+```
+
+### /work/update - Update Task Progress
+
+**Usage:** `/work/update <task-description> [phase-name]`
+
+**Steps:**
+1. Find task folder in `work/active/` matching `<task-description>`
+2. If multiple matches, ask user to confirm which task
+3. **Read .gitignore** in task folder to get ignore patterns
+4. Get list of changed/new files since last commit: `git diff --name-status <last-commit>..HEAD -- <task-folder>/`
+5. **Filter out ignored files:**
+   - Parse .gitignore content
+   - Exclude files matching ignore patterns (e.g., output/)
+6. **Analyze remaining changes:**
+   - For each changed file, show what was modified
+   - Generate a clear summary of the changes
+   - **DO NOT commit yet**
+7. **Check if all current files are listed in README:**
+   - Read README.md content
+   - Get current list of files in task folder (excluding output/, .gitignore, README.md)
+   - Parse "任务文件" section to extract listed files
+   - Identify files NOT listed in README or missing descriptions
+   - **If files are missing:**
+     - Identify files NOT listed in README
+     - Read the file content to understand its purpose
+     - Generate appropriate description based on content:
+       - If contains function/class definitions: "实现 X 功能的代码文件"
+       - If contains config/setting: "配置文件"
+       - If contains test cases: "测试文件"
+       - If contains documentation: "文档文件"
+       - If is a script: "脚本文件"
+       - 根据文件中的具体内容给出更准确的描述
+     - Update "任务文件" section in README with new file entries (只添加文件名和描述，不添加用户确认步骤)
+8. **Present analysis to user and ask for confirmation** before proceeding
+9. After user confirms, **Update README.md first:**
+   - Append new progress entry:
+     ```markdown
+     ### 阶段 N: <phase-name>
+     - 日期: YYYY-MM-DD
+     - 描述: <change-summary>
+     ```
+   - Update task file list in "任务文件" section
+10. **Then commit:**
+    - Use `git add -A` but specify files explicitly to exclude ignored ones
+    - Or use `git add <files>` with the filtered file list
+    - Commit: `git commit -m "<task-description>: <phase-name> - <change-summary>"`
+11. Return confirmation with commit info
+
+**IMPORTANT:** 
+- Always analyze changes BEFORE asking for confirmation
+- Never auto-commit without user confirmation
+- After user confirms, update README.md first, THEN commit
+- Always filter out files listed in .gitignore
+- **Always check if new files need to be added to README "任务文件" section with descriptions**
+
+**Change Summary Format:**
+- List new files added
+- List files modified
+- Concise description of changes (first 100 chars per file)
+
+### /work/archive - Archive Task
+
+**Usage:** `/work/archive <task-description>`
+
+**Steps:**
+1. Find task folder in `work/active/` matching `<task-description>`
+2. Move task folder from `work/active/` to `work/archive/`
+3. Update README.md status to "已归档"
+4. Commit the move: `git add -A && git commit -m "archive: <task-description>"`
+5. Return confirmation
+
+### /work/continue - Continue Task
+
+**Usage:** `/work/continue <task-description>`
+
+Continue working on an existing task by reading its context.
+
+**Steps:**
+1. Find task folder in `work/active/` matching `<task-description>`
+2. If multiple matches, ask user to confirm which task
+3. **Read README.md** to understand task context:
+   - Show task title and status
+   - Show start date
+   - Show progress history (all phases)
+   - Show current phase number
+4. List current task files (excluding output/ and .gitignore)
+5. Present task summary to user:
+   - Task status
+   - What has been done (progress history)
+   - Current file structure
+   - Prompt: "Ready to continue. What would you like to do next?"
+
+## Implementation Details
+
+### Date Helper
+
+Use shell command to get formatted date:
+```bash
+date +%Y%m%d    # For folder name: 20260227
+date +%Y-%m-%d  # For README: 2026-02-27
+```
+
+### File Listing
+
+For "任务文件" section, list all files in task folder (excluding README.md):
+```bash
+ls -la <task-folder> | grep -v README.md | awk '{print "- " $9}' | tail -n +4
+```
+
+### Git Integration
+
+- Only commit to the work/ root repository (not per-task repos)
+- Use meaningful commit messages combining task name and phase
+- Extract change summary from `git diff --stat`
+
+### Error Handling
+
+- If work/active/ doesn't exist, create it
+- If task folder not found, show available tasks in active/
+- If already archived, notify user
+- If not a git repository, initialize first
