@@ -1,6 +1,6 @@
 ---
 name: work-manager
-description: Manage personal work workspace with tasks. Use when user invokes /work/new, /work/update, /work/archive, or /work/continue slash commands. Creates and manages task folders with date-based naming (YYYYMMDD-description) in work/active/ directory, maintains task tracking README files with progress logs, and handles git commits with change summaries.
+description: Manage personal work workspace with tasks. Use when user invokes /work/new, /work/update, /work/archive, or /work/continue slash commands. Creates and manages task folders with date-based naming (YYYYMMDD-description) in work/active/ directory, maintains task tracking WORK_LOG files with progress logs, and handles git commits with change summaries.
 ---
 
 # Work Manager
