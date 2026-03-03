@@ -5,27 +5,24 @@ description: Manage personal work workspace with tasks. Use when user invokes /w
 
 # Work Manager
 
-Manage personal work tasks with date-based organization, task tracking, and git integration.
+管理个人工作任务的工具，支持日期组织、任务跟踪和 git 集成。
 
-## Workspace Structure
+## 目录结构
 
 ```
-<current-directory>/
-└── work/
-    ├── active/           # Active tasks
-    │   └── YYYYMMDD-task-name/
-    │       ├── WORK_LOG.md    # Task tracking file
-    │       ├── .gitignore   # Git ignore rules (filters output/)
-    │       ├── output/      # Generated files (demo, analysis, etc.)
-    │       └── ...         # Task files
-    └── archive/          # Archived tasks
+work/
+├── active/           # 活跃任务
+│   └── YYYYMMDD-task-name/
+│       ├── WORK_LOG.md  # 工作日志
+│       ├── .gitignore   # 忽略 output/
+│       ├── output/      # 新生成内容放这里
+│       └── ...         # 具体工作文件
+└── archive/          # 已归档任务
 ```
 
 ## Work Directory
 
-The skill uses a `work` subdirectory in the current directory as its work directory.
-
-**Auto-detect WORK_DIR:**
+**Auto-detect:**
 ```bash
 WORK_DIR="$PWD/work"
 SKILL_DIR="<path-to>/.opencode/skills/work-manager"
@@ -35,213 +32,100 @@ SKILL_DIR="<path-to>/.opencode/skills/work-manager"
 
 所有新生成的内容（页面、报告、临时文件、代码、文档等）都应优先写入 `output/` 文件夹，用户后续可根据需要将文件移出。
 
-## Commands
+---
 
-### /work/new - Create New Task
+## /work/new - 创建任务
 
-**Usage:** `/work/new <task-description>`
+创建新任务文件夹。
 
-**Steps:**
-1. Get today's date in YYYYMMDD format
-2. Create task folder: `work/active/YYYYMMDD-<task-description>/`
-3. Create `output/` folder inside task folder
-4. Create `.gitignore` file with content:
-   ```
-   output/
-   ```
-5. Create WORK_LOG.md with task tracking template
-6. Initialize git repository in work/ if not already initialized
-7. Initial commit (excluding output/ via .gitignore)
-8. Return confirmation with task folder path
-
-### Script: work-new.sh
-
+**执行脚本:**
 ```bash
-WORK_DIR="$PWD/work"
-SKILL_DIR="<path-to>/.opencode/skills/work-manager"
-"$SKILL_DIR/scripts/work-new.sh" "$WORK_DIR" "task-description"
+"$SKILL_DIR/scripts/work-new.sh" "$WORK_DIR" "任务描述"
 ```
+→ 创建任务文件夹、WORK_LOG.md、output/、.gitignore，自动提交
 
-**Output:**
-```json
-{
-  "success": true,
-  "task_folder": "/path/to/work/active/20260302-xxx",
-  "date": "2026-03-02",
-  "message": "Task created successfully"
-}
-```
+---
 
-### /work/update - Update Task Progress
+## /work/update - 更新任务进度
 
-**Usage:** `/work/update <task-description> [phase-name]`
+三阶段流程：**脚本分析 → 大模型处理 → 脚本提交**
 
-**Steps:**
-1. Find task folder in `work/active/` matching `<task-description>`
-2. If multiple matches, ask user to confirm which task
-3. **Read .gitignore** in task folder to get ignore patterns
-4. Get list of changed/new files since last commit: `git diff --name-status <last-commit>..HEAD -- <task-folder>/`
-5. **Filter out ignored files:**
-   - Parse .gitignore content
-   - Exclude files matching ignore patterns (e.g., output/)
-6. **Analyze remaining changes:**
-   - For each changed file, show what was modified
-   - Generate a clear summary of the changes
-   - **DO NOT commit yet**
-7. **Check if all current files are listed in WORK_LOG:**
-   - Read WORK_LOG.md content
-   - Get current list of files in task folder (excluding output/, .gitignore, WORK_LOG.md)
-   - Parse "任务文件" section to extract listed files
-   - Identify files NOT listed in WORK_LOG or missing descriptions
-   - **If files are missing:**
-     - Identify files NOT listed in WORK_LOG
-     - Read the file content to understand its purpose
-     - Generate appropriate description based on content:
-       - If contains function/class definitions: "实现 X 功能的代码文件"
-       - If contains config/setting: "配置文件"
-       - If contains test cases: "测试文件"
-       - If contains documentation: "文档文件"
-       - If is a script: "脚本文件"
-       - 根据文件中的具体内容给出更准确的描述
-     - Update "任务文件" section in WORK_LOG with new file entries (只添加文件名和描述，不添加用户确认步骤)
-8. **Present analysis to user and ask for confirmation** before proceeding
-9. After user confirms, **Update WORK_LOG.md first:**
-   - Append new progress entry:
-     ```markdown
-     ### 阶段 N: <phase-name>
-     - 日期: YYYY-MM-DD
-     - 描述: <change-summary>
-     ```
-   - Update task file list in "任务文件" section
-10. **Then commit:**
-    - Use `git add -A` but specify files explicitly to exclude ignored ones
-    - Or use `git add <files>` with the filtered file list
-    - Commit: `git commit -m "<task-description>: <phase-name> - <change-summary>"`
-11. Return confirmation with commit info
+### Phase 1: 脚本分析
 
-**IMPORTANT:** 
-- Always analyze changes BEFORE asking for confirmation
-- Never auto-commit without user confirmation
-- After user confirms, update WORK_LOG.md first, THEN commit
-- Always filter out files listed in .gitignore
-- **Always check if new files need to be added to WORK_LOG "任务文件" section with descriptions**
-
-**Three-Phase Workflow (Script → LLM → Script):**
-
-1. **Phase 1 - Script Analyze:** Run `--analyze` to get changed files, filter ignored files
-2. **Phase 2 - LLM Process:** Analyze changes, generate summary, confirm with user
-3. **Phase 3 - Script Commit:** Run `--commit` to update WORK_LOG and commit
-
-**Change Summary Format:**
-- List new files added
-- List files modified
-- Concise description of changes (first 100 chars per file)
-
-### Script: work-update.sh
-
-**Phase 1: Analyze**
+执行脚本获取变更：
 ```bash
-"$SKILL_DIR/scripts/work-update.sh" "$WORK_DIR" --analyze "task-description"
+"$SKILL_DIR/scripts/work-update.sh" "$WORK_DIR" --analyze "任务描述"
 ```
+→ 返回 changed_files, ignored_files, missing_files_in_readme
 
-**Output:**
-```json
-{
-  "success": true,
-  "task_folder": "/path/to/work/active/20260302-xxx",
-  "changed_files": [{"path": "xxx.md", "status": "A"}],
-  "ignored_files": [],
-  "readme_needs_update": true,
-  "missing_files_in_readme": ["xxx.md"]
-}
-```
+### Phase 2: 大模型处理
 
-**Phase 2: Commit**
+根据脚本输出：
+1. 分析变更内容
+2. 检查 WORK_LOG.md 是否需要更新文件列表
+3. 生成变更摘要
+4. 向用户确认
+
+### Phase 3: 脚本提交
+
+用户确认后执行：
 ```bash
-"$SKILL_DIR/scripts/work-update.sh" "$WORK_DIR" --commit "task-description" "change-summary"
+"$SKILL_DIR/scripts/work-update.sh" "$WORK_DIR" --commit "任务描述" "变更摘要"
 ```
+→ 更新 WORK_LOG.md，提交变更
 
-**Output:**
-```json
-{
-  "success": true,
-  "message": "Task updated and committed"
-}
-```
+**IMPORTANT:**
+- 必须先分析再确认，确认后才能提交
+- 始终过滤 .gitignore 中的文件
+- 检查新文件是否需要添加到 WORK_LOG.md "任务文件" 区域
 
-### /work/archive - Archive Task
+---
 
-**Usage:** `/work/archive <task-description>`
+## /work/archive - 归档任务
 
-**Steps:**
-1. Find task folder in `work/active/` matching `<task-description>`
-2. Move task folder from `work/active/` to `work/archive/`
-3. Update WORK_LOG.md status to "已归档"
-4. Commit the move: `git add -A && git commit -m "archive: <task-description>"`
-5. Return confirmation
+归档任务到 archive 目录。
 
-### Script: work-archive.sh
-
+**执行脚本:**
 ```bash
-"$SKILL_DIR/scripts/work-archive.sh" "$WORK_DIR" "task-description"
+"$SKILL_DIR/scripts/work-archive.sh" "$WORK_DIR" "任务描述"
 ```
+→ 移动任务到 archive/，更新状态为"已归档"，添加归档日期，自动提交
 
-**Output:**
-```json
-{
-  "success": true,
-  "task_folder": "/path/to/work/archive/20260302-xxx",
-  "message": "Task archived successfully"
-}
+---
+
+## /work/continue - 继续任务
+
+读取任务上下文，继续工作。
+
+**步骤:**
+1. 查找任务文件夹
+2. 读取 WORK_LOG.md
+3. 展示: 任务状态、开始日期、进展历史、当前文件结构
+4. 提示: "Ready to continue. What would you like to do next?"
+
+---
+
+## WORK_LOG.md 模板
+
+```markdown
+# 任务名称
+
+- 开始日期: YYYY-MM-DD
+- 状态: 进行中
+
+## Output 文件夹
+
+用于存放所有新生成的内容（页面、报告、临时文件、代码、文档等），后续可移出。
+
+## 任务文件
+
+（自动列出当前任务文件夹中的所有文件，排除 output/ 和 .gitignore）
+
+## 进展日志
+
+### 初始
+- 日期: YYYY-MM-DD
+- 描述: 任务创建
+
+> 注意：此文件仅用于任务跟踪，不在此写具体工作内容。
 ```
-
-### /work/continue - Continue Task
-
-**Usage:** `/work/continue <task-description>`
-
-Continue working on an existing task by reading its context.
-
-**Steps:**
-1. Find task folder in `work/active/` matching `<task-description>`
-2. If multiple matches, ask user to confirm which task
-3. **Read WORK_LOG.md** to understand task context:
-   - Show task title and status
-   - Show start date
-   - Show progress history (all phases)
-   - Show current phase number
-4. List current task files (excluding output/ and .gitignore)
-5. Present task summary to user:
-   - Task status
-   - What has been done (progress history)
-   - Current file structure
-   - Prompt: "Ready to continue. What would you like to do next?"
-
-## Implementation Details
-
-### Date Helper
-
-Use shell command to get formatted date:
-```bash
-date +%Y%m%d    # For folder name: 20260227
-date +%Y-%m-%d  # For WORK_LOG: 2026-02-27
-```
-
-### File Listing
-
-For "任务文件" section, list all files in task folder (excluding WORK_LOG.md):
-```bash
-ls -la <task-folder> | grep -v WORK_LOG.md | awk '{print "- " $9}' | tail -n +4
-```
-
-### Git Integration
-
-- Only commit to the work/ root repository (not per-task repos)
-- Use meaningful commit messages combining task name and phase
-- Extract change summary from `git diff --stat`
-
-### Error Handling
-
-- If work/active/ doesn't exist, create it
-- If task folder not found, show available tasks in active/
-- If already archived, notify user
-- If not a git repository, initialize first
