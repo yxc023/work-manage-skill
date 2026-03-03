@@ -48,6 +48,7 @@ if [ "$MODE" = "--analyze" ]; then
     fi
     
     TASK_NAME=$(basename "$TASK_FOLDER")
+    WORK_LOG_PATH="$TASK_FOLDER/WORK_LOG.md"
     
     # Get git changes
     cd "$WORK_DIR"
@@ -61,7 +62,23 @@ if [ "$MODE" = "--analyze" ]; then
     fi
     
     # Get changed files (relative to work/)
-    CHANGED_FILES=$(git diff --name-status "$LAST_COMMIT" -- "active/$TASK_NAME" | grep -v "^D" || true)
+    # 1. Tracked files with changes from last commit
+    CHANGED_FILES=$(git diff --name-status "$LAST_COMMIT" -- "active/$TASK_NAME" 2>/dev/null | grep -v "^D" || true)
+    
+    # 2. Untracked files (new files not yet in git)
+    UNTRACKED_FILES=$(git ls-files --others --exclude-standard -- "active/$TASK_NAME" 2>/dev/null || true)
+    
+    # Combine: add untracked files with status "A" (added)
+    if [ -n "$UNTRACKED_FILES" ]; then
+        for file in $UNTRACKED_FILES; do
+            filepath=$(echo "$file" | sed "s|active/${TASK_NAME}/||")
+            CHANGED_FILES="${CHANGED_FILES}
+A ${filepath}"
+        done
+    fi
+    
+    # Remove empty lines
+    CHANGED_FILES=$(echo "$CHANGED_FILES" | grep -v '^$' || true)
     
     # Read .gitignore to get ignore patterns
     GITIGNORE_PATH="$TASK_FOLDER/.gitignore"
@@ -71,6 +88,10 @@ if [ "$MODE" = "--analyze" ]; then
             [ -n "$line" ] && IGNORE_PATTERNS+=("$line")
         done < "$GITIGNORE_PATH"
     fi
+    
+    # Initialize variables
+    NEEDS_UPDATE="false"
+    MISSING_FILES="[]"
     
     # Filter files
     CHANGED_JSON="[]"
@@ -102,7 +123,7 @@ if [ "$MODE" = "--analyze" ]; then
             else
                 # Add to changed
                 if [ "$first" = true ]; then
-                    CHANGED_JSON='[{"path": "'"$filepath"'", "status": "'"$status"'"}]'
+                    CHANGED_JSON='[{"path": "'"$filepath"'", "status": "'"$status"'"}'
                     first=false
                 else
                     CHANGED_JSON="${CHANGED_JSON},{\"path\": \"$filepath\", \"status\": \"$status\"}"
@@ -149,8 +170,8 @@ if [ "$MODE" = "--analyze" ]; then
   "task_name": "${TASK_NAME}",
   "changed_files": ${CHANGED_JSON},
   "ignored_files": ${IGNORED_JSON},
-  "readme_needs_update": ${NEEDS_UPDATE},
-  "missing_files_in_readme": ${MISSING_FILES}
+  "work_log_needs_update": ${NEEDS_UPDATE},
+  "missing_files_in_work_log": ${MISSING_FILES}
 }
 EOF
 

@@ -28,10 +28,6 @@ WORK_DIR="$PWD/work"
 SKILL_DIR="<path-to>/.opencode/skills/work-manager"
 ```
 
-## 文件存放规则
-
-所有新生成的内容（页面、报告、临时文件、代码、文档等）都应优先写入 `output/` 文件夹，用户后续可根据需要将文件移出。
-
 ---
 
 ## /work/new - 创建任务
@@ -113,13 +109,10 @@ SKILL_DIR="<path-to>/.opencode/skills/work-manager"
 - 开始日期: YYYY-MM-DD
 - 状态: 进行中
 
-## Output 文件夹
-
-用于存放所有新生成的内容（页面、报告、临时文件、代码、文档等），后续可移出。
-
 ## 任务文件
 
-（自动列出当前任务文件夹中的所有文件，排除 output/ 和 .gitignore）
+- output/ - AI 生成信息的暂存区（审核后移出）
+- 其他文件...
 
 ## 进展日志
 
