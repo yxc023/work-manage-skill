@@ -112,22 +112,19 @@ if [ "$MODE" = "--analyze" ]; then
         CHANGED_JSON="${CHANGED_JSON}]"
     fi
     
-    # Check if README needs update (compare files in folder vs files listed)
-    NEEDS_UPDATE=false
-    MISSING_FILES="[]"
-    
-    if [ -f "$README_PATH" ]; then
-        # Get files in task folder (excluding output/, .gitignore, README.md)
-        CURRENT_FILES=$(find "$TASK_FOLDER" -maxdepth 1 -type f ! -name ".gitignore" ! -name "README.md" ! -path "*/output/*" -exec basename {} \; 2>/dev/null || true)
+    # Check if WORK_LOG needs update (compare files in folder vs files listed)
+    if [ -f "$WORK_LOG_PATH" ]; then
+        # Get files in task folder (excluding output/, .gitignore, WORK_LOG.md)
+        CURRENT_FILES=$(find "$TASK_FOLDER" -maxdepth 1 -type f ! -name ".gitignore" ! -name "WORK_LOG.md" ! -path "*/output/*" -exec basename {} \; 2>/dev/null || true)
         
-        # Get files listed in README "任务文件" section
-        README_FILES=$(sed -n '/## 任务文件/,/## 进展日志/p' "$README_PATH" 2>/dev/null | grep -E "^\- " | sed 's/^- //' || true)
+        # Get files listed in WORK_LOG "任务文件" section
+        WORK_LOG_FILES=$(sed -n '/## 任务文件/,/## 进展日志/p' "$WORK_LOG_PATH" 2>/dev/null | grep -E "^\- " | sed 's/^- //' || true)
         
         # Compare
         MISSING_JSON="["
         first=true
         for file in $CURRENT_FILES; do
-            if ! echo "$README_FILES" | grep -q "$file"; then
+            if ! echo "$WORK_LOG_FILES" | grep -q "$file"; then
                 if [ "$first" = true ]; then
                     MISSING_JSON='["'"$file"'"'
                     first=false
@@ -184,10 +181,10 @@ elif [ "$MODE" = "--commit" ]; then
     
     TASK_NAME=$(basename "$TASK_FOLDER")
     DATE_DISPLAY=$(date +%Y-%m-%d)
-    README_PATH="$TASK_FOLDER/WORK_LOG.md"
+    WORK_LOG_PATH="$TASK_FOLDER/WORK_LOG.md"
     
-    # Update README.md - append progress entry
-    cat >> "$README_PATH" << EOF
+    # Update WORK_LOG.md - append progress entry
+    cat >> "$WORK_LOG_PATH" << EOF
 
 ### ${CHANGE_SUMMARY}
 - 日期: ${DATE_DISPLAY}
@@ -195,13 +192,13 @@ elif [ "$MODE" = "--commit" ]; then
 EOF
 
     # Auto-update 任务文件 section if needed
-    # Get files in task folder (excluding output/, .gitignore, README.md)
-    CURRENT_FILES=$(find "$TASK_FOLDER" -maxdepth 1 -type f ! -name ".gitignore" ! -name "README.md" ! -path "*/output/*" -exec basename {} \; 2>/dev/null || true)
+    # Get files in task folder (excluding output/, .gitignore, WORK_LOG.md)
+    CURRENT_FILES=$(find "$TASK_FOLDER" -maxdepth 1 -type f ! -name ".gitignore" ! -name "WORK_LOG.md" ! -path "*/output/*" -exec basename {} \; 2>/dev/null || true)
     
-    # Read current README content
-    if [ -f "$README_PATH" ] && [ -n "$CURRENT_FILES" ]; then
+    # Read current WORK_LOG content
+    if [ -f "$WORK_LOG_PATH" ] && [ -n "$CURRENT_FILES" ]; then
         # Check if 任务文件 section has placeholder
-        if grep -q "（自动列出" "$README_PATH"; then
+        if grep -q "（自动列出" "$WORK_LOG_PATH"; then
             # Build new files list
             FILES_MARKDOWN=""
             for file in $CURRENT_FILES; do
@@ -209,13 +206,13 @@ EOF
             done
             
             # Replace using awk
-            awk '{if(/（自动列出/) {print ""; print "'"$FILES_MARKDOWN"'"} else {print}}' "$README_PATH" > "$README_PATH.tmp" && mv "$README_PATH.tmp" "$README_PATH"
+            awk '{if(/（自动列出/) {print ""; print "'"$FILES_MARKDOWN"'"} else {print}}' "$WORK_LOG_PATH" > "$WORK_LOG_PATH.tmp" && mv "$WORK_LOG_PATH.tmp" "$WORK_LOG_PATH"
         fi
     fi
     
     # Git commit
     cd "$WORK_DIR"
-    git add "active/$TASK_NAME/README.md"
+    git add "active/$TASK_NAME/WORK_LOG.md"
     
     # Add other tracked files
     for file in $CURRENT_FILES; do

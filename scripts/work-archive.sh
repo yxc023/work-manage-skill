@@ -53,12 +53,12 @@ mkdir -p "$ARCHIVE_DIR"
 # Move to archive
 mv "$TASK_FOLDER" "${ARCHIVE_DIR}/${TASK_NAME}"
 
-# Update README.md status and archive date
-README_PATH="${ARCHIVE_DIR}/${TASK_NAME}/WORK_LOG.md"
-if [ -f "$README_PATH" ]; then
-    sed -i '' 's/- 状态: 进行中/- 状态: 已归档/' "$README_PATH"
+# Update WORK_LOG.md status and archive date
+WORK_LOG_PATH="${ARCHIVE_DIR}/${TASK_NAME}/WORK_LOG.md"
+if [ -f "$WORK_LOG_PATH" ]; then
+    sed -i '' 's/- 状态: 进行中/- 状态: 已归档/' "$WORK_LOG_PATH"
     # Add archive date after 开始日期 line
-    awk '{print} /^- 开始日期: / {print "- 归档日期: '"$DATE_ARCHIVE"'"}' "$README_PATH" > "$README_PATH.tmp" && mv "$README_PATH.tmp" "$README_PATH"
+    awk '{print} /^- 开始日期: / {print "- 归档日期: '"$DATE_ARCHIVE"'"}' "$WORK_LOG_PATH" > "$WORK_LOG_PATH.tmp" && mv "$WORK_LOG_PATH.tmp" "$WORK_LOG_PATH"
 fi
 
 # Git commit
