@@ -179,8 +179,8 @@ elif [ "$MODE" = "--commit" ]; then
     TASK_DESC="$3"
     CHANGE_SUMMARY="$4"
     
-    if [ -z "$TASK_DESC" ] || [ -z "$CHANGE_SUMMARY" ]; then
-        echo '{"error": "Usage: work-update.sh WORK_DIR --commit task-description change-summary"}'
+    if [ -z "$TASK_DESC" ]; then
+        echo '{"error": "Usage: work-update.sh WORK_DIR --commit task-description [change-summary]"}'
         exit 1
     fi
     
@@ -203,6 +203,54 @@ elif [ "$MODE" = "--commit" ]; then
     TASK_NAME=$(basename "$TASK_FOLDER")
     DATE_DISPLAY=$(date +%Y-%m-%d)
     WORK_LOG_PATH="$TASK_FOLDER/WORK_LOG.md"
+    
+    # Auto-detect changes if no summary provided
+    if [ -z "$CHANGE_SUMMARY" ]; then
+        cd "$WORK_DIR"
+        LAST_COMMIT=$(git log -1 --format=%H 2>/dev/null || echo "")
+        
+        # Get changed files
+        CHANGED_FILES=$(git diff --name-status "$LAST_COMMIT" -- "active/$TASK_NAME" 2>/dev/null | grep -v "^D" || true)
+        UNTRACKED_FILES=$(git ls-files --others --exclude-standard -- "active/$TASK_NAME" 2>/dev/null || true)
+        
+        if [ -n "$UNTRACKED_FILES" ]; then
+            for file in $UNTRACKED_FILES; do
+                filepath=$(echo "$file" | sed "s|active/${TASK_NAME}/||")
+                CHANGED_FILES="${CHANGED_FILES}
+A ${filepath}"
+            done
+        fi
+        CHANGED_FILES=$(echo "$CHANGED_FILES" | grep -v '^$' || true)
+        
+        # Build detailed change summary
+        CHANGE_SUMMARY="更新任务文件"
+        if [ -n "$CHANGED_FILES" ]; then
+            CHANGE_SUMMARY="更新: "
+            first=true
+            while IFS= read -r line; do
+                [ -z "$line" ] && continue
+                status="${line:0:1}"
+                filepath="${line:2}"
+                # Strip task name prefix
+                filepath=$(echo "$filepath" | sed "s|${TASK_NAME}/||")
+                
+                case "$status" in
+                    A) action="新增" ;;
+                    M) action="修改" ;;
+                    D) action="删除" ;;
+                    R) action="重命名" ;;
+                    *) action="更新" ;;
+                esac
+                
+                if [ "$first" = true ]; then
+                    CHANGE_SUMMARY="${CHANGE_SUMMARY}${action} ${filepath}"
+                    first=false
+                else
+                    CHANGE_SUMMARY="${CHANGE_SUMMARY}, ${action} ${filepath}"
+                fi
+            done <<< "$CHANGED_FILES"
+        fi
+    fi
     
     # Update WORK_LOG.md - append progress entry
     cat >> "$WORK_LOG_PATH" << EOF
