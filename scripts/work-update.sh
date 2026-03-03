@@ -162,6 +162,41 @@ A ${filepath}"
         fi
     fi
     
+    # Check if --detailed mode (for LLM analysis)
+    DETAILED=""
+    if [ "$4" = "--detailed" ]; then
+        DETAILED="
+---
+## 变更详情 (供 LLM 分析)
+
+### 变更文件列表:"
+        
+        if [ -n "$CHANGED_FILES" ]; then
+            while IFS= read -r line; do
+                [ -z "$line" ] && continue
+                status="${line:0:1}"
+                filepath=$(echo "${line:2}" | sed "s|${TASK_NAME}/||")
+                case "$status" in
+                    A) DETAILED="${DETAILED}\n- [新增] ${filepath}" ;;
+                    M) DETAILED="${DETAILED}\n- [修改] ${filepath}" ;;
+                    D) DETAILED="${DETAILED}\n- [删除] ${filepath}" ;;
+                    R) DETAILED="${DETAILED}\n- [重命名] ${filepath}" ;;
+                    *) DETAILED="${DETAILED}\n- [更新] ${filepath}" ;;
+                esac
+                
+                # Add diff for this file (if tracked)
+                fullpath="${TASK_FOLDER}/${filepath}"
+                if [ -f "$fullpath" ] && [ "$status" = "M" ]; then
+                    DETAILED="${DETAILED}\n\`\`\`diff\n$(git diff -- "active/$TASK_NAME/${filepath}" 2>/dev/null | head -50)\n\`\`\`"
+                elif [ -f "$fullpath" ] && [ "$status" = "A" ]; then
+                    DETAILED="${DETAILED}\n\`\`\`\n$(head -30 "$fullpath")\n\`\`\`"
+                fi
+            done <<< "$CHANGED_FILES"
+        else
+            DETAILED="${DETAILED}\n无变更文件"
+        fi
+    fi
+    
     # Output JSON
     cat << EOF
 {
@@ -172,12 +207,20 @@ A ${filepath}"
   "ignored_files": ${IGNORED_JSON},
   "work_log_needs_update": ${NEEDS_UPDATE},
   "missing_files_in_work_log": ${MISSING_FILES}
-}
+}${DETAILED}
 EOF
 
 elif [ "$MODE" = "--commit" ]; then
     TASK_DESC="$3"
-    CHANGE_SUMMARY="$4"
+    CHANGE_SUMMARY=""
+    LLMSUMMARY=""
+    
+    # Parse arguments: --commit task-desc [-- llm-summary]
+    if [[ "$4" == "--" ]]; then
+        LLMSUMMARY="$5"
+    elif [ -n "$4" ]; then
+        CHANGE_SUMMARY="$4"
+    fi
     
     if [ -z "$TASK_DESC" ]; then
         echo '{"error": "Usage: work-update.sh WORK_DIR --commit task-description [change-summary]"}'
@@ -204,8 +247,10 @@ elif [ "$MODE" = "--commit" ]; then
     DATE_DISPLAY=$(date +%Y-%m-%d)
     WORK_LOG_PATH="$TASK_FOLDER/WORK_LOG.md"
     
-    # Auto-detect changes if no summary provided
-    if [ -z "$CHANGE_SUMMARY" ]; then
+    # Use LLM summary if provided, otherwise auto-detect
+    if [ -n "$LLMSUMMARY" ]; then
+        CHANGE_SUMMARY="$LLMSUMMARY"
+    elif [ -z "$CHANGE_SUMMARY" ]; then
         cd "$WORK_DIR"
         LAST_COMMIT=$(git log -1 --format=%H 2>/dev/null || echo "")
         
