@@ -60,18 +60,16 @@ SKILL_DIR="<path-to>/.opencode/skills/work-manager"
 1. 分析变更内容
 2. 检查 WORK_LOG.md 是否需要更新文件列表
 3. 生成变更摘要
-4. 向用户确认
 
 ### Phase 3: 脚本提交
 
-用户确认后执行：
+执行：
 ```bash
 "$SKILL_DIR/scripts/work-update.sh" "$WORK_DIR" --commit "任务描述" "变更摘要"
 ```
 → 更新 WORK_LOG.md，提交变更
 
 **IMPORTANT:**
-- 必须先分析再确认，确认后才能提交
 - 始终过滤 .gitignore 中的文件
 - 检查新文件是否需要添加到 WORK_LOG.md "任务文件" 区域
 
@@ -97,7 +95,7 @@ SKILL_DIR="<path-to>/.opencode/skills/work-manager"
 1. 查找任务文件夹
 2. 读取 WORK_LOG.md
 3. 展示: 任务状态、开始日期、进展历史、当前文件结构
-4. 提示: "Ready to continue. What would you like to do next?"
+4. 根据用户的要求完成工作
 
 ---
 
